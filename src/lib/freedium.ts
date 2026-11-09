@@ -24,13 +24,21 @@ function absolutize(html: string): string {
 
 export async function parseArticle(mediumUrl: string): Promise<ParsedArticle> {
   const freediumUrl = `${FREEDIUM_HOST}/${mediumUrl}`;
-  const res = await fetch(freediumUrl, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept: "text/html,application/xhtml+xml",
-    },
-  });
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 15000);
+  let res: Response;
+  try {
+    res = await fetch(freediumUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml",
+      },
+      signal: ctrl.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!res.ok) throw new Error(`Freedium fetch failed ${res.status}`);
   const html = await res.text();
   const $ = cheerio.load(html);

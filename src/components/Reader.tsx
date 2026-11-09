@@ -54,7 +54,19 @@ export default function Reader({ url, onClose }: { url: string; onClose: () => v
     const fetcher = cached
       ? Promise.resolve(cached)
       : fetch(`/api/article?url=${encodeURIComponent(url)}`)
-          .then((r) => r.json())
+          .then(async (r) => {
+            const text = await r.text().catch(() => "");
+            if (!r.ok) {
+              try {
+                const d = JSON.parse(text);
+                throw new Error(d.error || `Server error (${r.status})`);
+              } catch {
+                throw new Error(`Server error (${r.status})`);
+              }
+            }
+            if (!text.trim()) throw new Error("Server returned an empty response");
+            return JSON.parse(text);
+          })
           .then((d) => {
             articleCache.set(url, d);
             return d;
@@ -136,7 +148,13 @@ export default function Reader({ url, onClose }: { url: string; onClose: () => v
           {err && (
             <div className="py-20 text-center text-[#0f1b3e]">
               <p className="font-display text-lg font-bold">That page drifted away</p>
-              <p className="mt-1 text-sm text-[#2b3352]">{err}</p>
+              <p className="mx-auto mt-1 max-w-md text-sm text-[#2b3352]">{err}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-5 rounded-full bg-[#0f1b3e] px-6 py-3 text-sm font-bold text-[#ffc94d]"
+              >
+                Try again
+              </button>
             </div>
           )}
           {data && (
