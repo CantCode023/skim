@@ -60,11 +60,12 @@ export default function Reader({ url, onClose }: { url: string; onClose: () => v
               try {
                 const d = JSON.parse(text);
                 throw new Error(d.error || `Server error (${r.status})`);
-              } catch {
-                throw new Error(`Server error (${r.status})`);
+              } catch (e: any) {
+                if (e.message && !e.message.startsWith("Server error") && !e.message.startsWith("Unexpected")) throw e;
+                throw new Error("Medium is busy right now. Tap Try again in a few seconds.");
               }
             }
-            if (!text.trim()) throw new Error("Server returned an empty response");
+            if (!text.trim()) throw new Error("Medium is busy right now. Tap Try again in a few seconds.");
             return JSON.parse(text);
           })
           .then((d) => {

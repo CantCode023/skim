@@ -1,5 +1,4 @@
 import * as cheerio from "cheerio";
-import DOMPurify from "isomorphic-dompurify";
 
 const FREEDIUM_HOST = "https://freedium-mirror.cfd";
 
@@ -25,7 +24,7 @@ function absolutize(html: string): string {
 export async function parseArticle(mediumUrl: string): Promise<ParsedArticle> {
   const freediumUrl = `${FREEDIUM_HOST}/${mediumUrl}`;
   const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort(), 15000);
+  const timeout = setTimeout(() => ctrl.abort(), 8000);
   let res: Response;
   try {
     res = await fetch(freediumUrl, {
@@ -35,7 +34,11 @@ export async function parseArticle(mediumUrl: string): Promise<ParsedArticle> {
         Accept: "text/html,application/xhtml+xml",
       },
       signal: ctrl.signal,
+      cache: "no-store",
     });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw new Error("Freedium timed out");
+    throw e;
   } finally {
     clearTimeout(timeout);
   }
@@ -88,20 +91,13 @@ export async function parseArticle(mediumUrl: string): Promise<ParsedArticle> {
   let bodyHtml = prose.html() || "";
   bodyHtml = absolutize(bodyHtml);
 
-  // sanitize
-  const clean = DOMPurify.sanitize(bodyHtml, {
-    ADD_TAGS: ["picture", "source", "iframe"],
-    ADD_ATTR: [
-      "data-code",
-      "data-zoom-src",
-      "loading",
-      "decoding",
-      "srcset",
-      "sizes",
-      "target",
-      "rel",
-    ],
-  });
+  // lightweight sanitize (no jsdom — the old DOMPurify dependency is a known serverless crash source)
+  const clean = bodyHtml
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/\son\w+="[^"]*"/gi, "")
+    .replace(/\son\w+='[^']*'/gi, "")
+    .replace(/javascript:/gi, "");
 
   if (authorAvatar && (authorAvatar as string).startsWith("/")) {
     authorAvatar = `${FREEDIUM_HOST}${authorAvatar}`;
